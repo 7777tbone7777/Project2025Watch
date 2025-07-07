@@ -1,9 +1,9 @@
 import pandas as pd
 import datetime
-import os
-import streamlit as st # Used for st.secrets and st.cache_data
-from openai import OpenAI # Newer OpenAI client library syntax
-import requests # For News API queries (generic placeholder)
+import streamlit as st
+from openai import OpenAI
+import requests
+import feedparser # Added feedparser import
 
 # Initialize OpenAI client
 # When deploying on Streamlit, st.secrets is automatically loaded.
@@ -13,7 +13,16 @@ client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
 # Placeholder for News API (replace with your actual News API client/logic)
 # Ensure NEWS_API_KEY is configured in Streamlit Cloud Secrets.
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything" # Example News API base URL
-# NEWS_API_KEY = st.secrets.get("NEWS_API_KEY") # Uncomment and use if you have a News API Key
+# Access NEWS_API_KEY using st.secrets
+NEWS_API_KEY = st.secrets.get("NEWS_API_KEY") 
+
+AGENDA_CATEGORIES = [
+    "Federal Agency Capture",
+    "Judicial Defiance",
+    "Suppression of Dissent",
+    "NATO Disengagement",
+    "Media Subversion"
+]
 
 # --- Prediction Loading ---
 @st.cache_data
@@ -126,38 +135,103 @@ def score_prediction_status(prediction_text, news_summary):
 
     except Exception as e:
         st.error(f"Error scoring with AI for prediction '{prediction_text}': {e}")
+        st.exception(e) # RE-ENABLED for debugging
         return "Not Started" # Default in case of AI error
 
 
 @st.cache_data(show_spinner=False)
-def fetch_news_and_score_predictions(df_predictions):
+def fetch_geopolitical_updates():
     """
-    Fetches news for each prediction and updates its status using AI.
+    Fetches geopolitical news from RSS feeds and assigns tags.
     """
-    updated_predictions = []
-    news_api_key = st.secrets.get("NEWS_API_KEY") # Access NEWS_API_KEY here
+    rss_urls = [
+        "http://feeds.reuters.com/Reuters/worldNews",
+        "http://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://apnews.com/rss/apf-topnews"
+    ]
 
-    for index, row in df_predictions.iterrows():
-        prediction_text = row["Prediction"]
-        timeframe = row["Timeframe"]
+    articles = []
 
-        # Formulate a search query based on the prediction
-        # You might need to refine this for better news results
-        search_query = f"Project 2025 {prediction_text}"
-        
-        # Fetch news (using the generic search_news function)
-        news_summaries = search_news(search_query, news_api_key)
-        
-        combined_news_summary = "\n".join(news_summaries) if news_summaries else ""
+    for url in rss_urls:
+        feed = feedparser.parse(url)
+        # TEMPORARY: Processing only 1 entry per feed for faster testing/debugging
+        # REMEMBER TO CHANGE THIS BACK TO :3 or more for full functionality.
+        for entry in feed.entries[:1]: # Changed from :3 to :1 for testing
+            title = entry.title
+            summary = entry.summary if hasattr(entry, 'summary') else ""
+            full_text = f"Title: {title}\nSummary: {summary}"
+            
+            # Catch potential errors from AI tagging and make them visible
+            try:
+                tag = assign_tag_with_ai(full_text)
+            except Exception as e:
+                st.error(f"Error during AI tagging for article '{title}': {e}")
+                st.exception(e) # RE-ENABLED for debugging
+                tag = "Untagged (AI Error)" # Assign a tag to indicate error
 
-        # Score the prediction status using AI
-        new_status = score_prediction_status(prediction_text, combined_news_summary)
+            articles.append({
+                "title": title,
+                "date": datetime(*entry.published_parsed[:6]).strftime('%Y-%m-%d') if hasattr(entry, 'published_parsed') else "N/A",
+                "summary": summary,
+                "link": entry.link,
+                "tags": [tag] if tag and tag != "None" else [] # Ensure "None" string isn't added as a tag
+            })
 
-        # Update the DataFrame row
-        updated_row = row.copy()
-        updated_row["Result"] = new_status
-        updated_row["News Match"] = combined_news_summary # Store the combined news for display if desired
+    return articles
 
-        updated_predictions.append(updated_row)
+def analyze_progress():
+    # This data is currently hardcoded and defines the progress bars.
+    # In a real app, this would be updated by the news analysis.
+    return [
+        {"title": "Federal Agency Capture", "progress": 82, "last_updated": "2025-04-17"},
+        {"title": "Judicial Defiance", "progress": 73, "last_updated": "2025-04-17"},
+        {"title": "Suppression of Dissent", "progress": 78, "last_updated": "2025-04-17"},
+        {"title": "NATO Disengagement", "progress": 43, "last_updated": "2025-04-17"},
+        {"title": "Media Subversion", "progress": 54, "last_updated": "2025-04-17"},
+    ]
 
-    return pd.DataFrame(updated_predictions)
+def trigger_emergency_alert(progress_data):
+    triggered = False
+    reasons = []
+
+    for item in progress_data:
+        if item['title'] == "Federal Agency Capture" and item['progress'] >= 80:
+            reasons.append("Federal agency capture exceeds safe threshold.")
+        if item['title'] == "Judicial Defiance" and item['progress'] >= 70:
+            reasons.append("Unconstitutional judicial defiance observed.")
+        if item['title'] == "Suppression of Dissent" and item['progress'] >= 75:
+            reasons.append("Active suppression of dissent detected.")
+
+    if reasons:
+        return {"triggered": True, "reason": " | ".join(reasons)}
+    return {"triggered": False, "reason": ""}
+
+def generate_pdf_report(progress_data, events):
+    from fpdf import FPDF
+    import tempfile
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    pdf.cell(200, 10, txt="Dugin-Trump Weekly Intelligence Report", ln=True, align="C")
+
+    pdf.ln(10)
+    pdf.set_font("Arial", style='B', size=12)
+    pdf.cell(200, 10, txt="Progress Overview", ln=True)
+    pdf.set_font("Arial", size=11)
+    for item in progress_data:
+        pdf.cell(200, 8, txt=f"{item['title']}: {item['progress']}% (Last Updated: {item['last_updated']})", ln=True)
+
+    pdf.ln(10)
+    pdf.set_font("Arial", style='B', size=12)
+    pdf.cell(200, 10, txt="Recent Events", ln=True)
+    pdf.set_font("Arial", size=11)
+    for event in events:
+        pdf.cell(200, 8, txt=f"{event['title']} ({event['date']})", ln=True)
+        # Ensure summary is a string, then encode for fpdf compatibility
+        summary_text = str(event['summary']).encode('latin-1', 'replace').decode('latin-1')
+        pdf.multi_cell(0, 8, txt=summary_text)
+
+    temp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    pdf.output(temp.name)
+    return temp.name
