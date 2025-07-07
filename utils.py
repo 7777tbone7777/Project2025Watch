@@ -199,7 +199,7 @@ def fetch_geopolitical_updates():
 
             articles.append({
                 "title": title,
-                "date": datetime(*entry.published_parsed[:6]).strftime('%Y-%m-%d') if hasattr(entry, 'published_parsed') else "N/A",
+                "date": datetime.datetime(*entry.published_parsed[:6]).strftime('%Y-%m-%d') if hasattr(entry, 'published_parsed') else "N/A",
                 "summary": summary,
                 "link": entry.link,
                 "tags": [tag] if tag and tag != "None" else []
