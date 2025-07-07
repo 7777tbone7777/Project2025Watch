@@ -3,18 +3,14 @@ import datetime
 import streamlit as st
 from openai import OpenAI
 import requests
-import feedparser # Added feedparser import
+import feedparser
 
 # Initialize OpenAI client
-# When deploying on Streamlit, st.secrets is automatically loaded.
-# Ensure OPENAI_API_KEY is configured in Streamlit Cloud Secrets.
 client = OpenAI(api_key=st.secrets.get("OPENAI_API_KEY"))
 
-# Placeholder for News API (replace with your actual News API client/logic)
-# Ensure NEWS_API_KEY is configured in Streamlit Cloud Secrets.
-NEWS_API_BASE_URL = "https://newsapi.org/v2/everything" # Example News API base URL
-# Access NEWS_API_KEY using st.secrets
-NEWS_API_KEY = st.secrets.get("NEWS_API_KEY") 
+# Placeholder for News API
+NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
+NEWS_API_KEY = st.secrets.get("NEWS_API_KEY") # Access NEWS_API_KEY from st.secrets
 
 AGENDA_CATEGORIES = [
     "Federal Agency Capture",
@@ -29,7 +25,6 @@ AGENDA_CATEGORIES = [
 def get_predictions_dataframe():
     """
     Loads the Project 2025 predictions into a DataFrame.
-    In a real application, this would load from a persistent source (DB, CSV, Google Sheet).
     """
     predictions_data = [
         {"Timeframe": "Jan-Mar 2025", "Prediction": "Executive Order 1: Streamline Federal Bureaucracy", "Result": "Not Started", "News Match": ""},
@@ -41,7 +36,6 @@ def get_predictions_dataframe():
         {"Timeframe": "Oct-Dec 2025", "Prediction": "Executive Order 2: Re-evaluating Environmental Regulations", "Result": "Not Started", "News Match": ""},
     ]
     df = pd.DataFrame(predictions_data)
-    # Add a unique ID for each prediction for easier tracking if needed
     df['PredictionID'] = df.index
     return df
 
@@ -49,14 +43,12 @@ def get_predictions_dataframe():
 def search_news(query, api_key):
     """
     Searches news articles using a generic News API.
-    Replace with specific client/methods for your chosen News API.
     Returns a list of article summaries.
     """
     if not api_key:
         st.warning("NEWS_API_KEY not found in Streamlit Secrets. News fetching will not work.")
         return []
 
-    # Example for NewsAPI.org - adjust if using a different API
     params = {
         "q": query,
         "language": "en",
@@ -66,12 +58,11 @@ def search_news(query, api_key):
     }
     try:
         response = requests.get(NEWS_API_BASE_URL, params=params, timeout=10)
-        response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
+        response.raise_for_status()
         data = response.json()
         articles = []
         if data and data.get("articles"):
             for article in data["articles"]:
-                # Ensure 'description' key exists and is not None
                 if article.get("description"):
                     articles.append(article["title"] + ". " + article["description"])
         return articles
@@ -90,18 +81,17 @@ def search_news(query, api_key):
 
 
 # --- AI-based Status Scoring ---
-@st.cache_data(ttl=600) # Cache scores for 10 minutes
+@st.cache_data(ttl=600)
 def score_prediction_status(prediction_text, news_summary):
     """
     Uses OpenAI to score the status of a prediction based on news summaries.
-    Possible results: Achieved, InProgress, Obstructed, Not Started.
     """
     if not client.api_key:
         st.error("OpenAI API key not configured. Cannot score predictions.")
-        return "Not Started" # Default if API key is missing
+        return "Not Started"
 
     if not news_summary:
-        return "Not Started" # If no relevant news, assume not started or progress can't be determined
+        return "Not Started"
 
     prompt = f"""
     You are an expert political analyst. Your task is to evaluate the status of a specific prediction based on recent news.
@@ -116,16 +106,15 @@ def score_prediction_status(prediction_text, news_summary):
     """
     try:
         response = client.chat.completions.create(
-            model="gpt-3.5-turbo", # Using gpt-3.5-turbo for cost-effectiveness and speed, can change to gpt-4
+            model="gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a political analyst."},
                 {"role": "user", "content": prompt}
             ],
-            temperature=0.0, # Keep low for deterministic results
+            temperature=0.0,
             max_tokens=10
         )
         result = response.choices[0].message.content.strip()
-        # Validate result against expected categories
         valid_results = ["Achieved", "InProgress", "Obstructed", "Not Started"]
         if result in valid_results:
             return result
@@ -136,13 +125,68 @@ def score_prediction_status(prediction_text, news_summary):
     except Exception as e:
         st.error(f"Error scoring with AI for prediction '{prediction_text}': {e}")
         st.exception(e) # RE-ENABLED for debugging
-        return "Not Started" # Default in case of AI error
+        return "Not Started"
+
+# --- Main News Fetching and Scoring for DataFrame ---
+@st.cache_data(show_spinner=False, ttl=600) # Cache the entire df update process
+def fetch_news_and_score_predictions(df_predictions):
+    """
+    Fetches news for each prediction in the DataFrame and updates its status using AI.
+    This replaces the previous fetch_geopolitical_updates function for the main scoring loop.
+    """
+    st.info("Starting news fetch and prediction scoring...")
+    updated_predictions_list = []
+    news_api_key = st.secrets.get("NEWS_API_KEY")
+
+    for index, row in df_predictions.iterrows():
+        prediction_text = row["Prediction"]
+        st.info(f"Processing prediction: {prediction_text}") # Debug print
+        
+        # Formulate a search query based on the prediction
+        # You might need to refine this for better news results relevant to Project 2025
+        search_query = f"Project 2025 {prediction_text}"
+        
+        # Fetch news (using the generic search_news function)
+        # Limiting to very few articles per query for initial testing performance
+        news_summaries = search_news(search_query, news_api_key)
+        
+        combined_news_summary = "\n".join(news_summaries) if news_summaries else ""
+        if not combined_news_summary:
+            st.warning(f"No news found for '{prediction_text}'. Status will remain 'Not Started'.") # Debug print
+
+        # Score the prediction status using AI
+        new_status = score_prediction_status(prediction_text, combined_news_summary)
+
+        # Update the DataFrame row
+        updated_row = row.copy()
+        updated_row["Result"] = new_status
+        updated_row["News Match"] = combined_news_summary # Store the combined news for display if desired
+
+        updated_predictions_list.append(updated_row)
+    
+    st.success("Finished processing all predictions.")
+    return pd.DataFrame(updated_predictions_list)
 
 
-@st.cache_data(show_spinner=False)
+# --- Functions below are separate from the main scoring loop, for displaying geopolitical updates ---
+# These would be used if you wanted to display general geopolitical news separately from Project 2025 predictions.
+# Based on your app.py, it seems you want to tie articles to specific predictions.
+
+# The original fetch_geopolitical_updates is removed as its logic is merged into fetch_news_and_score_predictions
+# However, if you want to explicitly keep fetching and tagging general geopolitical news for the "categorized" display,
+# you would need to re-introduce and call a separate function for that in app.py.
+
+# For now, let's assume the "events" that app.py iterates over come *from* the 'News Match' column of the df
+# or need to be fetched separately. The app.py currently calls fetch_geopolitical_updates() for `events`.
+# Let's keep a placeholder for `fetch_geopolitical_updates` if you still intend to use the RSS feeds.
+# If these functions are NOT needed, you can remove them and update app.py accordingly.
+
+# If you want to use RSS feeds for general geopolitical updates, then include this:
+@st.cache_data(ttl=300)
 def fetch_geopolitical_updates():
     """
-    Fetches geopolitical news from RSS feeds and assigns tags.
+    Fetches geopolitical news from RSS feeds and assigns tags using AI.
+    This is separate from the Project 2025 prediction scoring.
     """
     rss_urls = [
         "http://feeds.reuters.com/Reuters/worldNews",
@@ -155,30 +199,67 @@ def fetch_geopolitical_updates():
     for url in rss_urls:
         feed = feedparser.parse(url)
         # TEMPORARY: Processing only 1 entry per feed for faster testing/debugging
-        # REMEMBER TO CHANGE THIS BACK TO :3 or more for full functionality.
         for entry in feed.entries[:1]: # Changed from :3 to :1 for testing
             title = entry.title
             summary = entry.summary if hasattr(entry, 'summary') else ""
             full_text = f"Title: {title}\nSummary: {summary}"
             
-            # Catch potential errors from AI tagging and make them visible
             try:
-                tag = assign_tag_with_ai(full_text)
+                # Use a different prompt for general tagging vs. prediction scoring
+                tag = assign_tag_with_ai_general(full_text) # New tagging function for general news
             except Exception as e:
                 st.error(f"Error during AI tagging for article '{title}': {e}")
-                st.exception(e) # RE-ENABLED for debugging
-                tag = "Untagged (AI Error)" # Assign a tag to indicate error
+                st.exception(e)
+                tag = "Untagged (AI Error)"
 
             articles.append({
                 "title": title,
                 "date": datetime(*entry.published_parsed[:6]).strftime('%Y-%m-%d') if hasattr(entry, 'published_parsed') else "N/A",
                 "summary": summary,
                 "link": entry.link,
-                "tags": [tag] if tag and tag != "None" else [] # Ensure "None" string isn't added as a tag
+                "tags": [tag] if tag and tag != "None" else []
             })
-
     return articles
 
+def assign_tag_with_ai_general(article_text):
+    """
+    Assigns a general category tag to an article using AI.
+    (This function could be used by fetch_geopolitical_updates).
+    """
+    if not client.api_key:
+        return "None" # No AI tagging if key missing
+
+    system_prompt = (
+        "You're a political analyst classifying news. "
+        "Choose the ONE most relevant category from this list: "
+        "Federal Agency Capture, Judicial Defiance, Suppression of Dissent, "
+        "NATO Disengagement, Media Subversion. "
+        "If none apply, return 'None'. Only return the category name."
+    )
+    user_prompt = f"Classify this article:\n{article_text}"
+
+    try:
+        response = client.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            temperature=0.2, # A bit higher temperature might give more diverse tags
+            max_tokens=20
+        )
+        tag = response.choices[0].message.content.strip()
+        valid_tags = AGENDA_CATEGORIES # Use the defined categories
+        return tag if tag in valid_tags else "None"
+    except Exception as e:
+        print(f"AI general tag error: {e}")
+        st.exception(e)
+        return "None"
+
+
+# NOTE: `analyze_progress` and `trigger_emergency_alert` were in `utils.py` previously.
+# Ensure they are correctly used by app.py based on your application design.
+# If these functions are used by app.py, keep them here.
 def analyze_progress():
     # This data is currently hardcoded and defines the progress bars.
     # In a real app, this would be updated by the news analysis.
@@ -206,6 +287,7 @@ def trigger_emergency_alert(progress_data):
         return {"triggered": True, "reason": " | ".join(reasons)}
     return {"triggered": False, "reason": ""}
 
+# PDF generation function (if still needed here)
 def generate_pdf_report(progress_data, events):
     from fpdf import FPDF
     import tempfile
@@ -228,7 +310,6 @@ def generate_pdf_report(progress_data, events):
     pdf.set_font("Arial", size=11)
     for event in events:
         pdf.cell(200, 8, txt=f"{event['title']} ({event['date']})", ln=True)
-        # Ensure summary is a string, then encode for fpdf compatibility
         summary_text = str(event['summary']).encode('latin-1', 'replace').decode('latin-1')
         pdf.multi_cell(0, 8, txt=summary_text)
 
