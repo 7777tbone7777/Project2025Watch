@@ -1,18 +1,18 @@
 from datetime import date
 from fastapi import APIRouter
-from app.models.schemas import ProgressList, ProgressItem, AlertStatus
-from app.services.news_service import search_news
+from app.models.schemas import ProgressList, ProgressItem, AlertStatus, ArticleLink
+from app.services.news_service import search_news_with_links
 from app.services.ai_service import analyze_category_progress, AGENDA_CATEGORIES
 
 router = APIRouter()
 
 # Store progress data in memory (in production, use a database)
 progress_store = {
-    "Federal Agency Capture": {"progress": 50, "last_updated": None},
-    "Judicial Defiance": {"progress": 50, "last_updated": None},
-    "Suppression of Dissent": {"progress": 50, "last_updated": None},
-    "NATO Disengagement": {"progress": 50, "last_updated": None},
-    "Media Subversion": {"progress": 50, "last_updated": None},
+    "Federal Agency Capture": {"progress": 50, "last_updated": None, "articles": []},
+    "Judicial Defiance": {"progress": 50, "last_updated": None, "articles": []},
+    "Suppression of Dissent": {"progress": 50, "last_updated": None, "articles": []},
+    "NATO Disengagement": {"progress": 50, "last_updated": None, "articles": []},
+    "Media Subversion": {"progress": 50, "last_updated": None, "articles": []},
 }
 
 
@@ -23,15 +23,15 @@ def get_current_date() -> str:
 @router.get("/progress", response_model=ProgressList)
 async def get_progress():
     """Get progress percentages for 5 agenda categories."""
-    current_date = get_current_date()
     items = []
     for category in AGENDA_CATEGORIES:
-        data = progress_store.get(category, {"progress": 50, "last_updated": None})
+        data = progress_store.get(category, {"progress": 50, "last_updated": None, "articles": []})
         items.append(
             ProgressItem(
                 title=category,
                 progress=data["progress"],
                 last_updated=data["last_updated"] or "Not analyzed yet",
+                articles=[ArticleLink(**a) for a in data.get("articles", [])],
             )
         )
     return ProgressList(items=items)
@@ -53,8 +53,8 @@ async def analyze_progress():
         }
 
         query = search_queries.get(category, f"Trump administration {category}")
-        news_articles = search_news(query)
-        combined_news = "\n".join(news_articles) if news_articles else ""
+        news_summaries, article_links = search_news_with_links(query, limit=2)
+        combined_news = "\n".join(news_summaries) if news_summaries else ""
 
         if combined_news:
             progress = analyze_category_progress(category, combined_news)
@@ -65,6 +65,7 @@ async def analyze_progress():
         progress_store[category] = {
             "progress": progress,
             "last_updated": current_date,
+            "articles": article_links,
         }
 
     # Return updated progress
@@ -73,6 +74,7 @@ async def analyze_progress():
             title=category,
             progress=progress_store[category]["progress"],
             last_updated=progress_store[category]["last_updated"],
+            articles=[ArticleLink(**a) for a in progress_store[category].get("articles", [])],
         )
         for category in AGENDA_CATEGORIES
     ]

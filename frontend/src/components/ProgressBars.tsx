@@ -61,6 +61,22 @@ export function ProgressBars() {
             <p className="text-xs text-muted-foreground">
               Last updated: {item.last_updated}
             </p>
+            {item.articles && item.articles.length > 0 && (
+              <div className="text-xs space-y-0.5 mt-1">
+                {item.articles.map((article, idx) => (
+                  <a
+                    key={idx}
+                    href={article.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-blue-600 hover:underline truncate"
+                    title={article.title}
+                  >
+                    → {article.title}
+                  </a>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </CardContent>

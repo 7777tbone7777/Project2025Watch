@@ -17,10 +17,16 @@ export interface ScoreResponse {
   message: string;
 }
 
+export interface ArticleLink {
+  title: string;
+  url: string;
+}
+
 export interface ProgressItem {
   title: string;
   progress: number;
   last_updated: string;
+  articles: ArticleLink[];
 }
 
 export interface ProgressList {

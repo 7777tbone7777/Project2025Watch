@@ -1,8 +1,45 @@
-from typing import List
+from typing import List, Dict, Tuple
 import requests
 from app.config import settings
 
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
+
+
+def search_news_with_links(query: str, limit: int = 2) -> Tuple[List[str], List[Dict]]:
+    """Search news articles and return both summaries and article links."""
+    if not settings.news_api_key:
+        print("ERROR: NEWS_API_KEY not configured")
+        return [], []
+
+    params = {
+        "q": query,
+        "language": "en",
+        "sortBy": "relevancy",
+        "apiKey": settings.news_api_key,
+        "pageSize": 5,
+    }
+
+    try:
+        response = requests.get(NEWS_API_BASE_URL, params=params, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+
+        summaries = []
+        links = []
+        if data and data.get("articles"):
+            for article in data["articles"]:
+                if article.get("description"):
+                    summaries.append(f"{article['title']}. {article['description']}")
+                    if len(links) < limit and article.get("url"):
+                        links.append({
+                            "title": article["title"][:80] + "..." if len(article["title"]) > 80 else article["title"],
+                            "url": article["url"],
+                        })
+        return summaries, links
+
+    except Exception as e:
+        print(f"ERROR: News search error for '{query}': {e}")
+        return [], []
 
 
 def search_news(query: str) -> List[str]:

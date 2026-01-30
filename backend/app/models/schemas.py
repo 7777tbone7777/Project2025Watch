@@ -14,10 +14,16 @@ class PredictionList(BaseModel):
     predictions: List[Prediction]
 
 
+class ArticleLink(BaseModel):
+    title: str
+    url: str
+
+
 class ProgressItem(BaseModel):
     title: str
     progress: int
     last_updated: str
+    articles: List[ArticleLink] = []
 
 
 class ProgressList(BaseModel):
