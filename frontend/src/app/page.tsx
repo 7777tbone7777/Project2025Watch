@@ -4,6 +4,7 @@ import { PredictionTable } from "@/components/PredictionTable";
 import { GeopoliticalFeed } from "@/components/GeopoliticalFeed";
 import { ReportDownload } from "@/components/ReportDownload";
 
+// Dashboard for tracking Project 2025 predictions
 export default function Home() {
   return (
     <main className="min-h-screen bg-background p-6 md:p-10">
