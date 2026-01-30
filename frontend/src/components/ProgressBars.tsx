@@ -4,9 +4,10 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchProgress } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
+import { Button } from "@/components/ui/button";
 
 export function ProgressBars() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["progress"],
     queryFn: fetchProgress,
   });
@@ -21,8 +22,16 @@ export function ProgressBars() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Progress Toward Authoritarian Goals</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          {isFetching ? "Refreshing..." : "Refresh"}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {data?.items.map((item) => (

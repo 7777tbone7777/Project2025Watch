@@ -1,25 +1,32 @@
+from datetime import date
 from fastapi import APIRouter
 from app.models.schemas import ProgressList, ProgressItem, AlertStatus
 
 router = APIRouter()
 
+# Base progress data (in a real app, this would come from a database)
 PROGRESS_DATA = [
-    {"title": "Federal Agency Capture", "progress": 82, "last_updated": "2025-04-17"},
-    {"title": "Judicial Defiance", "progress": 73, "last_updated": "2025-04-17"},
-    {"title": "Suppression of Dissent", "progress": 78, "last_updated": "2025-04-17"},
-    {"title": "NATO Disengagement", "progress": 43, "last_updated": "2025-04-17"},
-    {"title": "Media Subversion", "progress": 54, "last_updated": "2025-04-17"},
+    {"title": "Federal Agency Capture", "progress": 82},
+    {"title": "Judicial Defiance", "progress": 73},
+    {"title": "Suppression of Dissent", "progress": 78},
+    {"title": "NATO Disengagement", "progress": 43},
+    {"title": "Media Subversion", "progress": 54},
 ]
+
+
+def get_current_date() -> str:
+    return date.today().isoformat()
 
 
 @router.get("/progress", response_model=ProgressList)
 async def get_progress():
     """Get progress percentages for 5 agenda categories."""
+    current_date = get_current_date()
     items = [
         ProgressItem(
             title=p["title"],
             progress=p["progress"],
-            last_updated=p["last_updated"],
+            last_updated=current_date,
         )
         for p in PROGRESS_DATA
     ]

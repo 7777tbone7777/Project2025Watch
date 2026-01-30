@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGeopolitical } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 const tagColors: Record<string, string> = {
   "Federal Agency Capture": "bg-red-500",
@@ -14,7 +15,7 @@ const tagColors: Record<string, string> = {
 };
 
 export function GeopoliticalFeed() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ["geopolitical"],
     queryFn: fetchGeopolitical,
   });
@@ -29,8 +30,16 @@ export function GeopoliticalFeed() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Geopolitical Updates</CardTitle>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => refetch()}
+          disabled={isFetching}
+        >
+          {isFetching ? "Refreshing..." : "Refresh"}
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         {data?.articles.map((article, idx) => (
