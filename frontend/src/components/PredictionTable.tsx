@@ -55,6 +55,8 @@ export function PredictionTable() {
       <CardContent>
         {isLoading ? (
           <div className="text-muted-foreground">Loading predictions...</div>
+        ) : error ? (
+          <div className="text-red-500">Error: {error.message}</div>
         ) : (
           <Table>
             <TableHeader>
