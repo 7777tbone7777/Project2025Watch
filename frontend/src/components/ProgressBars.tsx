@@ -6,13 +6,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 
 export function ProgressBars() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["progress"],
     queryFn: fetchProgress,
   });
 
   if (isLoading) {
     return <div className="text-muted-foreground">Loading progress...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">Error: {error.message}</div>;
   }
 
   return (

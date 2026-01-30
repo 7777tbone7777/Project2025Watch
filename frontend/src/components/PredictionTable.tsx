@@ -26,7 +26,7 @@ export function PredictionTable() {
   const queryClient = useQueryClient();
   const [scoredData, setScoredData] = useState<Prediction[] | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["predictions"],
     queryFn: fetchPredictions,
   });

@@ -14,13 +14,17 @@ const tagColors: Record<string, string> = {
 };
 
 export function GeopoliticalFeed() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ["geopolitical"],
     queryFn: fetchGeopolitical,
   });
 
   if (isLoading) {
     return <div className="text-muted-foreground">Loading geopolitical feed...</div>;
+  }
+
+  if (error) {
+    return <div className="text-red-500">Error: {error.message}</div>;
   }
 
   return (
