@@ -1,15 +1,25 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
-import { fetchProgress } from "@/lib/api";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { fetchProgress, analyzeProgress } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
 
 export function ProgressBars() {
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const queryClient = useQueryClient();
+
+  const { data, isLoading, error } = useQuery({
     queryKey: ["progress"],
     queryFn: fetchProgress,
+  });
+
+  const analyzeMutation = useMutation({
+    mutationFn: analyzeProgress,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["progress"] });
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+    },
   });
 
   if (isLoading) {
@@ -25,15 +35,19 @@ export function ProgressBars() {
       <CardHeader className="flex flex-row items-center justify-between">
         <CardTitle>Progress Toward Authoritarian Goals</CardTitle>
         <Button
-          variant="outline"
+          onClick={() => analyzeMutation.mutate()}
+          disabled={analyzeMutation.isPending}
           size="sm"
-          onClick={() => refetch()}
-          disabled={isFetching}
         >
-          {isFetching ? "Refreshing..." : "Refresh"}
+          {analyzeMutation.isPending ? "Analyzing..." : "Analyze Progress"}
         </Button>
       </CardHeader>
       <CardContent className="space-y-4">
+        {analyzeMutation.isPending && (
+          <p className="text-sm text-muted-foreground">
+            Fetching news and analyzing with AI... This may take a moment.
+          </p>
+        )}
         {data?.items.map((item) => (
           <div key={item.title} className="space-y-1">
             <div className="flex justify-between text-sm">

@@ -64,6 +64,14 @@ export async function fetchProgress(): Promise<ProgressList> {
   return res.json();
 }
 
+export async function analyzeProgress(): Promise<ProgressList> {
+  const res = await fetch(`${API_URL}/api/progress/analyze`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error("Failed to analyze progress");
+  return res.json();
+}
+
 export async function fetchAlerts(): Promise<AlertStatus> {
   const res = await fetch(`${API_URL}/api/alerts`);
   if (!res.ok) throw new Error("Failed to fetch alerts");
