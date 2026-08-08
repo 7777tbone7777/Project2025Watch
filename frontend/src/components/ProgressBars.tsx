@@ -61,6 +61,11 @@ export function ProgressBars() {
             <p className="text-xs text-muted-foreground">
               Last updated: {item.last_updated}
             </p>
+            {item.reasoning && (
+              <p className="text-xs text-muted-foreground italic mt-1">
+                {item.reasoning}
+              </p>
+            )}
             {item.articles && item.articles.length > 0 && (
               <div className="text-xs space-y-0.5 mt-1">
                 {item.articles.map((article, idx) => (

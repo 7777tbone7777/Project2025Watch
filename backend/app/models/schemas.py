@@ -2,6 +2,11 @@ from pydantic import BaseModel
 from typing import List
 
 
+class ArticleLink(BaseModel):
+    title: str
+    url: str
+
+
 class Prediction(BaseModel):
     id: int
     timeframe: str
@@ -12,15 +17,14 @@ class Prediction(BaseModel):
     # reader can verify a status rather than taking the tracker's word for it.
     agency: str = ""
     source: str = ""
+    # Why the model landed on this status, and the articles it read. A bare label
+    # gives no way to tell a grounded call from a guess.
+    reasoning: str = ""
+    articles: List[ArticleLink] = []
 
 
 class PredictionList(BaseModel):
     predictions: List[Prediction]
-
-
-class ArticleLink(BaseModel):
-    title: str
-    url: str
 
 
 class ProgressItem(BaseModel):
@@ -28,6 +32,7 @@ class ProgressItem(BaseModel):
     progress: int
     last_updated: str
     articles: List[ArticleLink] = []
+    reasoning: str = ""
 
 
 class ProgressList(BaseModel):

@@ -1,84 +1,119 @@
+"""Agenda-category progress.
+
+Had the same fault as predictions: an in-memory dict that nothing refreshed, so
+the page served whatever was last analysed — in practice February figures shown
+under an August page, with no indication they were six months old. A container
+restart silently reset everything to a hardcoded 50%.
+
+Now cached with a TTL and refreshed in the background, so a cold start
+repopulates itself, and each score carries the reasoning behind it.
+"""
+import asyncio
+import logging
+import time
 from datetime import date
+
 from fastapi import APIRouter
+
 from app.models.schemas import ProgressList, ProgressItem, AlertStatus, ArticleLink
 from app.services.news_service import search_news_with_links
-from app.services.ai_service import analyze_category_progress, AGENDA_CATEGORIES
+from app.services.ai_service import analyze_category_with_reasoning, AGENDA_CATEGORIES
 
+log = logging.getLogger(__name__)
 router = APIRouter()
 
-# Store progress data in memory (in production, use a database)
-progress_store = {
-    "Federal Agency Capture": {"progress": 50, "last_updated": None, "articles": []},
-    "Judicial Defiance": {"progress": 50, "last_updated": None, "articles": []},
-    "Suppression of Dissent": {"progress": 50, "last_updated": None, "articles": []},
-    "NATO Disengagement": {"progress": 50, "last_updated": None, "articles": []},
-    "Media Subversion": {"progress": 50, "last_updated": None, "articles": []},
+CACHE_TTL_SECONDS = 6 * 3600
+
+# Searches are defined once, next to the categories they serve.
+SEARCH_QUERIES = {
+    "Federal Agency Capture": '("Schedule F" OR "civil service" OR "federal workers") AND (fired OR appointees OR protections)',
+    "Judicial Defiance": '("court order" OR "federal judge" OR ruling) AND (defy OR ignored OR "contempt")',
+    "Suppression of Dissent": '(protesters OR journalists OR "free speech") AND (arrested OR detained OR restricted)',
+    "NATO Disengagement": '(NATO OR "US troops") AND (Europe AND (withdrawal OR reduce OR commitment))',
+    "Media Subversion": '("press freedom" OR "public broadcasting" OR journalists) AND (funding OR access OR revoked)',
 }
+
+progress_store = {
+    c: {"progress": 0, "last_updated": None, "articles": [], "reasoning": ""}
+    for c in AGENDA_CATEGORIES
+}
+_analyzed_at = 0.0
+_refreshing = False
 
 
 def get_current_date() -> str:
     return date.today().isoformat()
 
 
-@router.get("/progress", response_model=ProgressList)
-async def get_progress():
-    """Get progress percentages for 5 agenda categories."""
-    items = []
+def _items() -> list:
+    out = []
     for category in AGENDA_CATEGORIES:
-        data = progress_store.get(category, {"progress": 50, "last_updated": None, "articles": []})
-        items.append(
+        data = progress_store.get(category, {})
+        out.append(
             ProgressItem(
                 title=category,
-                progress=data["progress"],
-                last_updated=data["last_updated"] or "Not analyzed yet",
+                progress=data.get("progress", 0),
+                last_updated=data.get("last_updated") or "Not analyzed yet",
                 articles=[ArticleLink(**a) for a in data.get("articles", [])],
+                reasoning=data.get("reasoning", ""),
             )
         )
-    return ProgressList(items=items)
+    return out
+
+
+def refresh_progress() -> int:
+    """Re-analyse every category. Blocking; returns how many were analysed."""
+    global _analyzed_at
+    today = get_current_date()
+    for category in AGENDA_CATEGORIES:
+        try:
+            query = SEARCH_QUERIES.get(category, category)
+            summaries, links = search_news_with_links(query, limit=3)
+            combined = "\n".join(summaries) if summaries else ""
+            score, reasoning = analyze_category_with_reasoning(category, combined)
+            progress_store[category] = {
+                "progress": score,
+                "last_updated": today,
+                "articles": links,
+                "reasoning": reasoning,
+            }
+        except Exception as e:
+            log.error("Progress analysis failed for %s: %s", category, e)
+    _analyzed_at = time.time()
+    return len(AGENDA_CATEGORIES)
+
+
+def _is_stale() -> bool:
+    return not _analyzed_at or (time.time() - _analyzed_at) > CACHE_TTL_SECONDS
+
+
+async def _refresh_in_background() -> None:
+    global _refreshing
+    if _refreshing:
+        return
+    _refreshing = True
+    try:
+        await asyncio.to_thread(refresh_progress)
+    except Exception as e:
+        log.error("Background progress refresh failed: %s", e)
+    finally:
+        _refreshing = False
+
+
+@router.get("/progress", response_model=ProgressList)
+async def get_progress():
+    """Progress for the 5 agenda categories. Returns immediately; refreshes stale
+    data in the background rather than serving months-old figures forever."""
+    if _is_stale() and not _refreshing:
+        asyncio.create_task(_refresh_in_background())
+    return ProgressList(items=_items())
 
 
 @router.post("/progress/analyze", response_model=ProgressList)
 async def analyze_progress():
-    """Fetch news and analyze progress for all categories using AI."""
-    current_date = get_current_date()
-
-    for category in AGENDA_CATEGORIES:
-        # Create search query for this category
-        search_queries = {
-            "Federal Agency Capture": "Trump federal agency firings appointments Schedule F",
-            "Judicial Defiance": "Trump court order defiance judicial ruling ignored",
-            "Suppression of Dissent": "Trump protesters arrests journalists detained free speech",
-            "NATO Disengagement": "Trump NATO alliance withdrawal Europe defense",
-            "Media Subversion": "Trump media fake news press freedom journalists",
-        }
-
-        query = search_queries.get(category, f"Trump administration {category}")
-        news_summaries, article_links = search_news_with_links(query, limit=2)
-        combined_news = "\n".join(news_summaries) if news_summaries else ""
-
-        if combined_news:
-            progress = analyze_category_progress(category, combined_news)
-        else:
-            # Keep existing progress if no news found
-            progress = progress_store[category]["progress"]
-
-        progress_store[category] = {
-            "progress": progress,
-            "last_updated": current_date,
-            "articles": article_links,
-        }
-
-    # Return updated progress
-    items = [
-        ProgressItem(
-            title=category,
-            progress=progress_store[category]["progress"],
-            last_updated=progress_store[category]["last_updated"],
-            articles=[ArticleLink(**a) for a in progress_store[category].get("articles", [])],
-        )
-        for category in AGENDA_CATEGORIES
-    ]
-    return ProgressList(items=items)
+    """Force a re-analysis now."""
+    await asyncio.to_thread(refresh_progress)
+    return ProgressList(items=_items())
 
 
 @router.get("/alerts", response_model=AlertStatus)

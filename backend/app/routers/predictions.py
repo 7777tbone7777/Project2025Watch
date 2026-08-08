@@ -23,9 +23,9 @@ from typing import List, Optional
 from fastapi import APIRouter
 
 from app.data.predictions_data import PREDICTIONS
-from app.models.schemas import Prediction, PredictionList, ScoreResponse
-from app.services.ai_service import score_prediction_status
-from app.services.news_service import search_news
+from app.models.schemas import ArticleLink, Prediction, PredictionList, ScoreResponse
+from app.services.ai_service import score_prediction_with_reasoning
+from app.services.news_service import search_news_with_links
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -51,6 +51,8 @@ def _base(index: int, item: dict, scored: Optional[dict]) -> Prediction:
         source=item.get("source", ""),
         result=(scored or {}).get("result", "Not Started"),
         news_match=(scored or {}).get("news_match", ""),
+        reasoning=(scored or {}).get("reasoning", ""),
+        articles=[ArticleLink(**a) for a in (scored or {}).get("articles", [])],
     )
 
 
@@ -64,13 +66,17 @@ def _score_one(index: int, item: dict) -> dict:
         # Search the KEYWORDS, not the prediction sentence. Searching the full
         # sentence is what produced zero matches for every prediction.
         query = item.get("keywords") or item["prediction"]
-        summaries = search_news(query)
+        summaries, links = search_news_with_links(query, limit=3)
         combined = "\n".join(summaries) if summaries else ""
-        status = score_prediction_status(item["prediction"], combined)
-        return {"result": status, "news_match": combined}
+        status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
+        # Keep the articles the call was based on, so a status can be checked
+        # rather than believed.
+        return {"result": status, "news_match": combined,
+                "reasoning": reasoning, "articles": links}
     except Exception as e:
         log.error("Scoring failed for %r: %s", item["prediction"][:60], e)
-        return {"result": "Not Started", "news_match": ""}
+        return {"result": "Not Started", "news_match": "",
+                "reasoning": f"Scoring error: {type(e).__name__}", "articles": []}
 
 
 def refresh_scores() -> int:

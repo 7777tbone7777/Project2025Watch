@@ -1,11 +1,23 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://backend-production-d969.up.railway.app";
 
+export interface ArticleLink {
+  title: string;
+  url: string;
+}
+
 export interface Prediction {
   id: number;
   timeframe: string;
   prediction: string;
   result: string;
   news_match: string;
+  // Which agency the proposal concerns, where it is documented, why the model
+  // scored it as it did, and the articles it read — so a status can be checked
+  // rather than taken on trust.
+  agency?: string;
+  source?: string;
+  reasoning?: string;
+  articles?: ArticleLink[];
 }
 
 export interface PredictionList {
@@ -17,16 +29,12 @@ export interface ScoreResponse {
   message: string;
 }
 
-export interface ArticleLink {
-  title: string;
-  url: string;
-}
-
 export interface ProgressItem {
   title: string;
   progress: number;
   last_updated: string;
   articles: ArticleLink[];
+  reasoning?: string;
 }
 
 export interface ProgressList {
