@@ -1,6 +1,22 @@
 from typing import List, Dict, Tuple
+import logging
+
 import requests
 from app.config import settings
+
+log = logging.getLogger(__name__)
+
+# Last failure reason, so callers can report it instead of silently showing zero.
+LAST_ERROR = {"reason": ""}
+
+
+def clear_last_error():
+    LAST_ERROR["reason"] = ""
+
+
+def last_error() -> str:
+    return LAST_ERROR["reason"]
+
 
 NEWS_API_BASE_URL = "https://newsapi.org/v2/everything"
 
@@ -38,7 +54,15 @@ def search_news_with_links(query: str, limit: int = 2) -> Tuple[List[str], List[
         return summaries, links
 
     except Exception as e:
-        print(f"ERROR: News search error for '{query}': {e}")
+        # Record WHY, so a caller can tell "no coverage exists" from "we could not
+        # ask". Returning [] for both made a rate-limited request render as a
+        # confident 0% with the caption "No news coverage found".
+        detail = str(e)
+        if "429" in detail or "too many requests" in detail.lower():
+            LAST_ERROR["reason"] = "NewsAPI rate limit reached (100 requests/day on the free tier)"
+        else:
+            LAST_ERROR["reason"] = f"News lookup failed: {type(e).__name__}"
+        log.error("News search failed for %r: %s", query[:60], e)
         return [], []
 
 

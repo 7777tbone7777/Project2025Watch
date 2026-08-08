@@ -16,7 +16,8 @@ from datetime import date
 from fastapi import APIRouter
 
 from app.models.schemas import ProgressList, ProgressItem, AlertStatus, ArticleLink
-from app.services.news_service import search_news_with_links
+from app.services.federal_register_service import search_with_links as fr_search
+from app.services.news_service import clear_last_error, last_error, search_news_with_links
 from app.services.ai_service import analyze_category_with_reasoning, AGENDA_CATEGORIES
 
 log = logging.getLogger(__name__)
@@ -31,6 +32,11 @@ SEARCH_QUERIES = {
     "Suppression of Dissent": '(protesters OR journalists OR "free speech") AND (arrested OR detained OR restricted)',
     "NATO Disengagement": '(NATO OR "US troops") AND (Europe AND (withdrawal OR reduce OR commitment))',
     "Media Subversion": '("press freedom" OR "public broadcasting" OR journalists) AND (funding OR access OR revoked)',
+}
+
+FR_QUERIES = {
+    "Federal Agency Capture": '"Schedule Policy/Career" OR "excepted service"',
+    "Media Subversion": '"Corporation for Public Broadcasting"',
 }
 
 progress_store = {
@@ -67,14 +73,38 @@ def refresh_progress() -> int:
     today = get_current_date()
     for category in AGENDA_CATEGORIES:
         try:
-            query = SEARCH_QUERIES.get(category, category)
-            summaries, links = search_news_with_links(query, limit=3)
-            combined = "\n".join(summaries) if summaries else ""
+            clear_last_error()
+            fr_text, fr_links = ("", [])
+            if FR_QUERIES.get(category):
+                fr_text, fr_links = fr_search(FR_QUERIES[category], per_page=3)
+
+            summaries, news_links = search_news_with_links(
+                SEARCH_QUERIES.get(category, category), limit=3)
+            news_text = "\n".join(summaries) if summaries else ""
+            fetch_error = last_error()
+
+            parts = [x for x in (fr_text,
+                                 ("RECENT NEWS COVERAGE:\n" + news_text) if news_text else "") if x]
+            combined = "\n\n".join(parts)
+
+            if not combined:
+                # Nothing to judge from. Overwriting the previous score with 0 would
+                # publish a fabricated number — say why instead and keep what we had.
+                previous = progress_store.get(category, {})
+                progress_store[category] = {
+                    "progress": previous.get("progress", 0),
+                    "last_updated": previous.get("last_updated") or "never",
+                    "articles": previous.get("articles", []),
+                    "reasoning": (f"Not updated — {fetch_error}" if fetch_error
+                                  else "No coverage found for this category"),
+                }
+                continue
+
             score, reasoning = analyze_category_with_reasoning(category, combined)
             progress_store[category] = {
                 "progress": score,
                 "last_updated": today,
-                "articles": links,
+                "articles": fr_links + news_links,
                 "reasoning": reasoning,
             }
         except Exception as e:
