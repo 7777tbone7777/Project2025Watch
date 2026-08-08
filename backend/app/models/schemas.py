@@ -8,6 +8,10 @@ class Prediction(BaseModel):
     prediction: str
     result: str
     news_match: str
+    # Which department the proposal concerns, and where it is documented, so a
+    # reader can verify a status rather than taking the tracker's word for it.
+    agency: str = ""
+    source: str = ""
 
 
 class PredictionList(BaseModel):
