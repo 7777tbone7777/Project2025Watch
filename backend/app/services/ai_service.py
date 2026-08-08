@@ -62,8 +62,15 @@ using only the news excerpts provided.
 
 PROPOSAL: "{prediction_text}"
 
-NEWS EXCERPTS:
+EVIDENCE:
 {news_summary[:6000]}
+
+The evidence may contain two kinds of source, and they do not carry equal weight:
+- FEDERAL REGISTER DOCUMENTS are the official record of government action. A
+  Presidential Document or a final Rule on point is strong evidence the proposal
+  was carried out. A Proposed Rule indicates it is underway.
+- NEWS COVERAGE is reporting about events, useful for context and for whether
+  something was blocked.
 
 Choose exactly one status:
 - "Achieved"    - the proposal has been substantially carried out
@@ -77,6 +84,8 @@ Rules:
 - "Obstructed" requires evidence something actually blocked it, not merely that
   the excerpts mention opposition or criticism.
 - Headlines about a related topic are not evidence about THIS proposal.
+- A Federal Register document must actually concern THIS proposal. Unrelated rules
+  that merely share a word are not evidence.
 
 Respond as JSON only:
 {{"status": "<one of the four>", "reason": "<one sentence, under 25 words, citing what in the excerpts led you there>"}}"""

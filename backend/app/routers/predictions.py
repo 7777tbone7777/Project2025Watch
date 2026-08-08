@@ -25,6 +25,7 @@ from fastapi import APIRouter
 from app.data.predictions_data import PREDICTIONS
 from app.models.schemas import ArticleLink, Prediction, PredictionList, ScoreResponse
 from app.services.ai_service import score_prediction_with_reasoning
+from app.services.federal_register_service import search_with_links as fr_search
 from app.services.news_service import search_news_with_links
 
 log = logging.getLogger(__name__)
@@ -65,9 +66,21 @@ def _score_one(index: int, item: dict) -> dict:
     try:
         # Search the KEYWORDS, not the prediction sentence. Searching the full
         # sentence is what produced zero matches for every prediction.
+        # Two sources, deliberately. The Federal Register is the record of what
+        # government actually DID and reaches back to 2025; NewsAPI's free tier
+        # only sees about a month, which is why proposals enacted early in the
+        # administration scored "Not Started" forever.
+        fr_text, fr_links = ("", [])
+        if item.get("fr_query"):
+            fr_text, fr_links = fr_search(item["fr_query"], per_page=4)
+
         query = item.get("keywords") or item["prediction"]
-        summaries, links = search_news_with_links(query, limit=3)
-        combined = "\n".join(summaries) if summaries else ""
+        summaries, news_links = search_news_with_links(query, limit=3)
+        news_text = "\n".join(summaries) if summaries else ""
+
+        parts = [p for p in (fr_text, ("RECENT NEWS COVERAGE:\n" + news_text) if news_text else "") if p]
+        combined = "\n\n".join(parts)
+        links = fr_links + news_links
         status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
         # Keep the articles the call was based on, so a status can be checked
         # rather than believed.
