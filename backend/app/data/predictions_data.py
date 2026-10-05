@@ -81,7 +81,7 @@ PREDICTIONS = [
         "agency": "Department of Education",
         "keywords": "\"Title I\" AND (funding OR schools OR eliminate)",
         "fr_query": "\"Title I\" elementary secondary education",
-        "wiki_query": 'Elementary and Secondary Education Act Title I funding',
+        "wiki_query": 'Education policy of the second Trump administration Title I funding',
         "source": "Mandate for Leadership ch.11",
     },
     {
@@ -207,7 +207,7 @@ PREDICTIONS = [
         "agency": "Department of Defense",
         "keywords": "(NATO OR \"US troops\") AND (Europe AND (withdrawal OR posture OR reduce))",
         "fr_query": "",
-        "wiki_query": 'United States military deployment in Europe troop withdrawal',
+        "wiki_query": 'United States military deployment in Europe 2025 troop reduction Romania',
         "source": "project2025.observer — recorded completed 1 May 2026",
     },
 
