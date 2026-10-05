@@ -95,7 +95,10 @@ Choose exactly one status:
 Rules:
 - Judge ONLY from the excerpts.
 - "Unknown" is the DEFAULT. Start there and move off it only when the excerpts
-  give you a reason to.
+  give you a reason to — but a reason can come from any source present. An
+  encyclopedia passage stating that an action occurred, with dates, is a reason.
+  Ranking sources decides what to believe when they CONFLICT; it is not a licence
+  to ignore the only source that addresses the proposal.
 - "Not Started" is a positive claim that this proposal has NOT been acted on, and
   it needs evidence saying so — reporting that it stalled, was abandoned, was
   never introduced. If your reasoning would be "the excerpts do not provide

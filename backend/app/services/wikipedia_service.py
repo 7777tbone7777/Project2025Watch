@@ -81,8 +81,13 @@ def search_with_links(query: str, limit: int = 2) -> Tuple[str, List[Dict]]:
     titles = search_titles(query, limit=limit)
     if not titles:
         return "", []
-    lines = ["BACKGROUND (encyclopedia summary — not a primary record; weigh below "
-             "the Federal Register and contemporaneous reporting):"]
+    # The earlier wording — "not a primary record; weigh below the Federal
+    # Register" — combined with a prompt that makes Unknown the default, taught
+    # the model to discount the only source carrying the answer. Ranking sources
+    # was meant to stop a headline outweighing a rule, not to make a dated,
+    # sourced account of a completed action count for nothing.
+    lines = ["ENCYCLOPEDIA BACKGROUND (secondary source, but a dated and specific "
+             "account here is sufficient evidence that something happened):"]
     links = []
     for t in titles:
         extract = intro_extract(t)
