@@ -104,8 +104,13 @@ def _score_one(index: int, item: dict) -> dict:
         # the Education teardown reported administrative action, so neither appears
         # in the Register as a rule.
         if status in (UNKNOWN, "Not Started"):
-            wiki_query = item.get("wiki_query") or item.get("keywords") or item["prediction"]
-            wiki_text, wiki_links = wiki_search(wiki_query)
+            # wiki_query is a plain-language article query. The fallback used to
+            # be the NewsAPI keyword string, and since no entry carried a
+            # wiki_query at all, every lookup ran on boolean syntax Wikipedia
+            # reads as literal keywords — which is how a search about the
+            # Department of Education returned "Filipino Sign Language".
+            wiki_query = item.get("wiki_query") or item["prediction"]
+            wiki_text, wiki_links = wiki_search(wiki_query, item["prediction"])
             if wiki_text:
                 retry_evidence = "\n\n".join(parts + [wiki_text])
                 retry_status, retry_reasoning = score_prediction_with_reasoning(

@@ -34,6 +34,7 @@ PREDICTIONS = [
         "agency": "Office of Personnel Management",
         "keywords": "(\"Schedule F\" OR \"Schedule Policy/Career\") AND (federal OR \"civil service\" OR OPM)",
         "fr_query": "\"Schedule Policy/Career\"",
+        "wiki_query": 'Schedule Policy/Career',
         "source": "Mandate for Leadership ch.3 (Central Personnel Agencies); EO 13957 lineage",
     },
     {
@@ -42,6 +43,7 @@ PREDICTIONS = [
         "agency": "Office of Personnel Management",
         "keywords": "(\"Schedule Policy/Career\" OR \"Schedule F\") AND (rule OR OPM OR convert)",
         "fr_query": "\"Schedule Policy/Career\"",
+        "wiki_query": 'Schedule Policy/Career',
         "source": "OPM final rule, Feb 2026; EO June 2026 converting ~10,000 positions",
     },
     {
@@ -50,6 +52,7 @@ PREDICTIONS = [
         "agency": "Office of Personnel Management",
         "keywords": "\"collective bargaining\" AND (federal AND (union OR employees))",
         "fr_query": "\"collective bargaining\" federal labor relations",
+        "wiki_query": 'American Federation of Government Employees collective bargaining executive order',
         "source": "project2025.observer — recorded completed 24 Apr 2026, partially enjoined 15 May",
     },
     {
@@ -58,6 +61,7 @@ PREDICTIONS = [
         "agency": "Executive Office of the President",
         "keywords": "(\"hiring freeze\" OR \"regulatory freeze\") AND federal",
         "fr_query": "\"hiring freeze\"",
+        "wiki_query": 'Second presidency of Donald Trump federal hiring freeze',
         "source": "Mandate for Leadership ch.1 (White House Office)",
     },
 
@@ -68,6 +72,7 @@ PREDICTIONS = [
         "agency": "Department of Education",
         "keywords": "\"Department of Education\" AND (dismantle OR abolish OR eliminate)",
         "fr_query": "\"Department of Education\" reduction in force",
+        "wiki_query": 'Dismantling of the United States Department of Education',
         "source": "Mandate for Leadership ch.11, pp.319-361 (Lindsey M. Burke)",
     },
     {
@@ -76,6 +81,7 @@ PREDICTIONS = [
         "agency": "Department of Education",
         "keywords": "\"Title I\" AND (funding OR schools OR eliminate)",
         "fr_query": "\"Title I\" elementary secondary education",
+        "wiki_query": 'Elementary and Secondary Education Act Title I funding',
         "source": "Mandate for Leadership ch.11",
     },
     {
@@ -84,6 +90,7 @@ PREDICTIONS = [
         "agency": "Department of Education",
         "keywords": "(\"school choice\" OR vouchers) AND (\"tax credit\" OR federal OR private)",
         "fr_query": "\"school choice\" OR \"education savings account\"",
+        "wiki_query": 'Scholarship tax credit school choice United States',
         "source": "Mandate for Leadership ch.11",
     },
     {
@@ -92,6 +99,7 @@ PREDICTIONS = [
         "agency": "Department of Education",
         "keywords": "(\"income-driven repayment\" OR \"student loan\") AND (repayment OR forgiveness)",
         "fr_query": "\"income-driven repayment\"",
+        "wiki_query": 'Income-driven repayment',
         "source": "Mandate for Leadership ch.11",
     },
 
@@ -102,6 +110,7 @@ PREDICTIONS = [
         "agency": "Department of Justice",
         "keywords": "\"Justice Department\" AND (\"political appointees\" OR prosecutors)",
         "fr_query": "\"excepted service\" appointment",
+        "wiki_query": 'United States Department of Justice second Trump administration appointees',
         "source": "Mandate for Leadership ch.17 (Department of Justice)",
     },
     {
@@ -110,6 +119,7 @@ PREDICTIONS = [
         "agency": "Federal Bureau of Investigation",
         "keywords": "FBI AND (investigations AND (political OR independence OR \"White House\"))",
         "fr_query": "",
+        "wiki_query": 'Federal Bureau of Investigation second Trump administration',
         "source": "Mandate for Leadership ch.17; Brennan Center analysis",
     },
     {
@@ -118,6 +128,7 @@ PREDICTIONS = [
         "agency": "Department of Justice",
         "keywords": "\"Justice Department\" AND (\"White House\" AND (contacts OR independence))",
         "fr_query": "",
+        "wiki_query": 'United States Department of Justice second Trump administration',
         "source": "Mandate for Leadership ch.17",
     },
 
@@ -128,6 +139,7 @@ PREDICTIONS = [
         "agency": "Environmental Protection Agency",
         "keywords": "\"endangerment finding\" AND (EPA OR rescind OR greenhouse)",
         "fr_query": "\"endangerment finding\"",
+        "wiki_query": 'Endangerment finding greenhouse gases',
         "source": "project2025.observer — recorded completed 12 Feb 2026",
     },
     {
@@ -136,6 +148,7 @@ PREDICTIONS = [
         "agency": "Department of Energy",
         "keywords": "\"carbon capture\" AND (grants OR canceled OR program)",
         "fr_query": "\"carbon capture\"",
+        "wiki_query": 'Carbon capture and storage in the United States',
         "source": "project2025.observer — recorded completed 15 Jan 2026, 24 grants canceled",
     },
     {
@@ -144,6 +157,7 @@ PREDICTIONS = [
         "agency": "Department of the Interior",
         "keywords": "\"Endangered Species Act\" AND (\"critical habitat\" OR rule)",
         "fr_query": "\"critical habitat\" OR \"Endangered Species Act\" definition",
+        "wiki_query": 'Critical habitat Endangered Species Act',
         "source": "project2025.observer — recorded completed 10 Jul 2026",
     },
 
@@ -154,6 +168,7 @@ PREDICTIONS = [
         "agency": "National Institutes of Health",
         "keywords": "(\"fetal tissue\" OR \"stem cell\") AND (NIH OR research OR funding)",
         "fr_query": "\"fetal tissue\" research",
+        "wiki_query": 'Fetal tissue research United States federal funding',
         "source": "project2025.observer — recorded completed 22 Jan 2026",
     },
     {
@@ -163,6 +178,7 @@ PREDICTIONS = [
         "agency": "Department of Health and Human Services",
         "keywords": "\"Refugee Resettlement\" AND (abortion OR minors OR policy)",
         "fr_query": "\"Office of Refugee Resettlement\"",
+        "wiki_query": 'Office of Refugee Resettlement abortion unaccompanied minors',
         "source": "project2025.observer — recorded completed 1 Mar 2026",
     },
     {
@@ -171,6 +187,7 @@ PREDICTIONS = [
         "agency": "Department of Health and Human Services",
         "keywords": "(\"religious freedom\" AND (HHS OR \"civil rights\" OR conscience))",
         "fr_query": "\"Conscience and Religious Freedom\"",
+        "wiki_query": 'Conscience and Religious Freedom Division',
         "source": "project2025.observer — recorded completed 30 Jun 2026",
     },
     {
@@ -179,6 +196,7 @@ PREDICTIONS = [
         "agency": "Department of Health and Human Services",
         "keywords": "(\"teen pregnancy\" OR abstinence) AND (grants OR program OR funding)",
         "fr_query": "\"Teen Pregnancy Prevention\"",
+        "wiki_query": 'Teen Pregnancy Prevention Program',
         "source": "project2025.observer — recorded completed 22 Jul 2026, 53 of 67 grants canceled",
     },
 
@@ -189,6 +207,7 @@ PREDICTIONS = [
         "agency": "Department of Defense",
         "keywords": "(NATO OR \"US troops\") AND (Europe AND (withdrawal OR posture OR reduce))",
         "fr_query": "",
+        "wiki_query": 'United States military deployment in Europe troop withdrawal',
         "source": "project2025.observer — recorded completed 1 May 2026",
     },
 
@@ -199,6 +218,7 @@ PREDICTIONS = [
         "agency": "Corporation for Public Broadcasting",
         "keywords": "(\"public broadcasting\" OR NPR OR PBS) AND (funding OR defund)",
         "fr_query": "\"Corporation for Public Broadcasting\"",
+        "wiki_query": 'Corporation for Public Broadcasting defunding',
         "source": "Mandate for Leadership ch.8 (Media Agencies)",
     },
 
@@ -209,6 +229,7 @@ PREDICTIONS = [
         "agency": "Office of Management and Budget",
         "keywords": "(OMB OR \"Office of Management and Budget\") AND (apportionment OR funding OR impoundment)",
         "fr_query": "apportionment appropriations impoundment",
+        "wiki_query": 'Impoundment of appropriated funds',
         "source": "Mandate for Leadership ch.2 (Office of Management and Budget)",
     },
 ]
