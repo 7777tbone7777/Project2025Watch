@@ -40,11 +40,13 @@ above it.
 """
 import json
 import logging
+import os
 import re
 import threading
 import time
 import urllib.parse
 import urllib.request
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 log = logging.getLogger(__name__)
@@ -88,6 +90,64 @@ _ACTION = ("eliminat dismantl abolish closure clos shut terminat rescind repeal 
            "withdrew withdrawal finalized").split()
 
 
+# Wikipedia answers are cached on disk, because the same 21 proposals look up the
+# same articles on every scoring pass. Three passes in a quarter of an hour was
+# enough for Wikipedia to start answering 429, and a lookup that fails returns no
+# evidence, which sends a proposal back to Unknown — so re-scoring could lose a
+# status that an earlier pass had got right. Caching makes a repeat pass ask for
+# nothing it has already seen.
+#
+# Railway's filesystem does not survive a redeploy, which is fine: the point is
+# repeat runs within a deploy, and a cold cache behaves exactly like the old code.
+_CACHE_PATH = Path(__file__).resolve().parent.parent.parent / "data" / "wikipedia_cache.json"
+_CACHE_TTL = 7 * 24 * 3600
+_cache: Dict[str, Dict] = {}
+_cache_loaded = False
+
+
+def _load_cache() -> None:
+    global _cache, _cache_loaded
+    if _cache_loaded:
+        return
+    _cache_loaded = True
+    try:
+        if _CACHE_PATH.exists():
+            _cache = json.loads(_CACHE_PATH.read_text())
+    except Exception as e:
+        log.warning("Could not read Wikipedia cache: %s", e)
+        _cache = {}
+
+
+def _save_cache() -> None:
+    try:
+        _CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        tmp = _CACHE_PATH.with_suffix(".tmp")
+        tmp.write_text(json.dumps(_cache))
+        os.replace(tmp, _CACHE_PATH)
+    except Exception as e:
+        log.warning("Could not write Wikipedia cache: %s", e)
+
+
+def _cached(key: str):
+    _load_cache()
+    entry = _cache.get(key)
+    if not entry:
+        return None
+    if time.time() - entry.get("at", 0) > _CACHE_TTL:
+        return None
+    return entry.get("value")
+
+
+def _store(key: str, value) -> None:
+    _load_cache()
+    # Only successes are cached. Caching an empty result would make one 429
+    # stick for a week.
+    if not value:
+        return
+    _cache[key] = {"at": time.time(), "value": value}
+    _save_cache()
+
+
 def _get(params: Dict) -> Dict:
     params = {**params, "format": "json"}
     url = API + "?" + urllib.parse.urlencode(params)
@@ -114,16 +174,29 @@ def search_titles(query: str, limit: int = 2) -> List[str]:
     """Article titles matching `query`, best match first."""
     if not query:
         return []
+    key = f"search:{limit}:{query}"
+    hit = _cached(key)
+    if hit is not None:
+        return hit
     data = _get({"action": "query", "list": "search", "srsearch": query, "srlimit": limit})
-    return [r["title"] for r in data.get("query", {}).get("search", []) if r.get("title")]
+    titles = [r["title"] for r in data.get("query", {}).get("search", []) if r.get("title")]
+    _store(key, titles)
+    return titles
 
 
 def _article_text(title: str) -> str:
+    key = f"article:{title}"
+    hit = _cached(key)
+    if hit is not None:
+        return hit
     data = _get({"action": "query", "prop": "extracts", "explaintext": 1,
                  "titles": title, "redirects": 1})
+    text = ""
     for page in (data.get("query", {}).get("pages") or {}).values():
-        return page.get("extract") or ""
-    return ""
+        text = page.get("extract") or ""
+        break
+    _store(key, text)
+    return text
 
 
 def _terms(topic: str) -> set:
