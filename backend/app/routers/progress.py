@@ -101,6 +101,18 @@ def refresh_progress() -> int:
                 continue
 
             score, reasoning = analyze_category_with_reasoning(category, combined)
+            if score is None:
+                # Analysis failed. Same rule as having no coverage: keep the last
+                # real figure and say what went wrong, rather than zeroing the bar
+                # and presenting a failure as a measurement.
+                previous = progress_store.get(category, {})
+                progress_store[category] = {
+                    "progress": previous.get("progress", 0),
+                    "last_updated": previous.get("last_updated") or "never",
+                    "articles": fr_links + news_links or previous.get("articles", []),
+                    "reasoning": reasoning,
+                }
+                continue
             progress_store[category] = {
                 "progress": score,
                 "last_updated": today,

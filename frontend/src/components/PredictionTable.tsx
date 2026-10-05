@@ -20,6 +20,10 @@ const statusColors: Record<string, string> = {
   InProgress: "bg-yellow-500",
   Obstructed: "bg-blue-500",
   "Not Started": "bg-gray-500",
+  // A scoring failure is not a finding. It used to render as "Not Started",
+  // which put a confident grey badge on proposals that had already happened.
+  // Outlined rather than filled, so it reads as missing instead of measured.
+  Unknown: "bg-transparent text-muted-foreground border border-dashed border-muted-foreground",
 };
 
 export function PredictionTable() {
@@ -96,7 +100,7 @@ export function PredictionTable() {
                       </TableCell>
                       <TableCell>
                         <Badge
-                          className={statusColors[pred.result] || "bg-gray-500"}
+                          className={statusColors[pred.result] || statusColors.Unknown}
                         >
                           {pred.result}
                         </Badge>

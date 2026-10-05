@@ -38,11 +38,21 @@ AGENDA_CATEGORIES = [
 
 VALID_STATUSES = ["Achieved", "InProgress", "Obstructed", "Not Started"]
 
+# "Not Started" is a claim about the world: nothing has happened yet. A failed API
+# call, a missing key, or no coverage are claims about us, and rendering them as
+# "Not Started" put confident grey badges on proposals that had visibly already
+# happened — the Department of Education teardown and the CPB defunding among
+# them. UNKNOWN keeps the two apart.
+UNKNOWN = "Unknown"
+
 
 def get_openai_client() -> Optional[OpenAI]:
     if not settings.openai_api_key:
         return None
-    return OpenAI(api_key=settings.openai_api_key)
+    # Rate limits and brief 5xx responses are transient; the SDK retries them with
+    # backoff. Without this a single blip marks a proposal unscored until someone
+    # notices and re-runs.
+    return OpenAI(api_key=settings.openai_api_key, max_retries=3)
 
 
 def score_prediction_with_reasoning(prediction_text: str, news_summary: str) -> Tuple[str, str]:
@@ -53,9 +63,9 @@ def score_prediction_with_reasoning(prediction_text: str, news_summary: str) -> 
     """
     client = get_openai_client()
     if not client:
-        return "Not Started", "OpenAI API key not configured"
+        return UNKNOWN, "OpenAI API key not configured"
     if not news_summary:
-        return "Not Started", "No news coverage found for this proposal"
+        return UNKNOWN, "No news coverage found for this proposal"
 
     prompt = f"""You are assessing whether a specific policy proposal has been acted on,
 using only the news excerpts provided.
@@ -110,11 +120,14 @@ Respond as JSON only:
         reason = str(data.get("reason", "")).strip()
         if status not in VALID_STATUSES:
             log.warning("Invalid status %r for %r", status, prediction_text[:50])
-            return "Not Started", "Model returned an unrecognised status"
+            return UNKNOWN, f"Model returned an unrecognised status: {status!r}"
         return status, reason or "No reasoning given"
     except Exception as e:
-        log.error("Scoring failed for %r: %s", prediction_text[:50], e)
-        return "Not Started", f"Scoring error: {type(e).__name__}"
+        # The class name alone is undiagnosable from the page. RateLimitError in
+        # particular covers both genuine throttling and an exhausted quota, and
+        # only the message says which.
+        log.error("Scoring failed for %r: %s", prediction_text[:50], e, exc_info=True)
+        return UNKNOWN, f"Scoring failed ({type(e).__name__}): {e}"
 
 
 def score_prediction_status(prediction_text: str, news_summary: str) -> str:
@@ -162,8 +175,11 @@ CATEGORY_DESCRIPTIONS = {
 }
 
 
-def analyze_category_with_reasoning(category: str, news_summary: str) -> Tuple[int, str]:
-    """Return (percentage 0-100, one-line justification).
+def analyze_category_with_reasoning(category: str, news_summary: str) -> Tuple[Optional[int], str]:
+    """Return (percentage 0-100, one-line justification), or (None, why) on failure.
+
+    None means no figure was produced. The caller keeps whatever it already had
+    rather than publishing a zero nobody measured.
 
     The old version asked for a bare number with a scale anchored on loaded terms
     and no requirement to point at anything. A number nobody can interrogate is
@@ -216,8 +232,11 @@ Respond as JSON only:
         score = int(re.sub(r"[^0-9]", "", str(data.get("score", 0))) or 0)
         return max(0, min(100, score)), str(data.get("reason", "")).strip() or "No reasoning given"
     except Exception as e:
-        log.error("Category analysis failed for %s: %s", category, e)
-        return 0, f"Analysis error: {type(e).__name__}"
+        # None, not 0 — a zeroed bar is a measurement, and this is the absence of
+        # one. The caller keeps whatever it had rather than publishing a figure
+        # nobody computed.
+        log.error("Category analysis failed for %s: %s", category, e, exc_info=True)
+        return None, f"Analysis failed ({type(e).__name__}): {e}"
 
 
 def analyze_category_progress(category: str, news_summary: str) -> int:
