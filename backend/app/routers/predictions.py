@@ -125,13 +125,20 @@ def _score_one(index: int, item: dict) -> dict:
 
 
 def refresh_scores() -> int:
-    """Re-score every proposal. Returns how many were scored. Blocking."""
+    """Re-score every proposal. Returns how many were scored. Blocking.
+
+    Results publish one at a time rather than all at the end. A full pass now
+    takes minutes — full Federal Register text per proposal, and a throttled
+    GDELT lookup for anything the first pass could not decide — and swapping the
+    whole set in at the finish means a page polling during that run sees nothing
+    change and reasonably concludes the button did nothing.
+    """
     global _scores, _scored_at
-    results = {}
+    results = dict(_scores)
     for i, item in enumerate(PREDICTIONS):
         results[i] = _score_one(i, item)
-    _scores = results
-    _scored_at = time.time()
+        _scores = dict(results)
+        _scored_at = time.time()
     log.info("Scored %d predictions", len(results))
     return len(results)
 
@@ -168,11 +175,26 @@ async def list_predictions():
 
 @router.post("/predictions/score", response_model=ScoreResponse)
 async def score_predictions():
-    """Force a re-score now and return the results."""
-    count = await asyncio.to_thread(refresh_scores)
+    """Start a re-score and return immediately with whatever is current.
+
+    Scoring every proposal now costs far more than a request can hold: full
+    Federal Register text per proposal, and for anything the first pass could not
+    decide, a GDELT lookup bound by one request every five seconds plus a second
+    scoring call. Awaiting that returned 502 from the proxy after 56 seconds, and
+    a timed-out request looks exactly like a broken one.
+
+    The work continues in the background. Poll /predictions/status and refetch
+    when `refreshing` goes false.
+    """
+    if _refreshing:
+        return ScoreResponse(
+            predictions=get_predictions(),
+            message="Already scoring — results update as each proposal finishes",
+        )
+    asyncio.create_task(_refresh_in_background())
     return ScoreResponse(
         predictions=get_predictions(),
-        message=f"Scored {count} predictions against current news",
+        message=f"Scoring {len(PREDICTIONS)} proposals in the background",
     )
 
 
