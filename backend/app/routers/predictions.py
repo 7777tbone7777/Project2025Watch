@@ -16,7 +16,9 @@ waiting on ~20 news+LLM round trips, and a cold container self-heals rather than
 serving stale placeholders forever.
 """
 import asyncio
+import json
 import logging
+from pathlib import Path
 import time
 from typing import List, Optional
 
@@ -25,7 +27,7 @@ from fastapi import APIRouter
 from app.data.predictions_data import PREDICTIONS
 from app.models.schemas import ArticleLink, Prediction, PredictionList, ScoreResponse
 from app.services.ai_service import UNKNOWN, score_prediction_with_reasoning
-from app.services.gdelt_service import search_with_links as gdelt_search
+from app.services.wikipedia_service import search_with_links as wiki_search
 from app.services.federal_register_service import search_with_links as fr_search
 from app.services.news_service import search_news_with_links
 
@@ -85,23 +87,27 @@ def _score_one(index: int, item: dict) -> dict:
         combined = "\n\n".join(parts)
         status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
 
-        # Reach for the deep archive only when the first pass could not settle it.
+        # Second pass only for proposals the first could not settle.
         #
-        # The previous gate tested whether the evidence was SHORT, which stopped
+        # An earlier gate tested whether the evidence was SHORT, which stopped
         # working the moment full Federal Register text made it long. Length was
         # never the point: 3,000 characters about Reduction in Force is long and
-        # still says nothing about eliminating the Department of Education.
+        # still says nothing about eliminating the Department of Education. What
+        # matters is whether the evidence answered the question, and the scorer
+        # already reports that.
         #
-        # What matters is whether the evidence answered the question, and the
-        # scorer already reports that. Re-running only the undecided proposals
-        # keeps GDELT's one-request-per-five-seconds inside a blocking re-score,
-        # and those are exactly the proposals whose evidence predates what the
-        # Register and a month of news can reach.
+        # The second source is Wikipedia rather than GDELT. GDELT has the archive
+        # depth but allows one request every five seconds and returned 429 well
+        # inside that budget, and its article list carries headlines with no text.
+        # Wikipedia needs no key, is not meaningfully throttled, and carries prose
+        # that settles these cases outright — the CPB defunding was legislation and
+        # the Education teardown reported administrative action, so neither appears
+        # in the Register as a rule.
         if status in (UNKNOWN, "Not Started"):
-            gd_query = item.get("gdelt_query") or item.get("keywords") or item["prediction"]
-            gd_text, gd_links = gdelt_search(gd_query)
-            if gd_text:
-                retry_evidence = "\n\n".join(parts + [gd_text])
+            wiki_query = item.get("wiki_query") or item.get("keywords") or item["prediction"]
+            wiki_text, wiki_links = wiki_search(wiki_query)
+            if wiki_text:
+                retry_evidence = "\n\n".join(parts + [wiki_text])
                 retry_status, retry_reasoning = score_prediction_with_reasoning(
                     item["prediction"], retry_evidence)
                 # Keep the second pass only if it actually decided something. A
@@ -109,7 +115,7 @@ def _score_one(index: int, item: dict) -> dict:
                 # reasoning for.
                 if retry_status not in (UNKNOWN, "Not Started"):
                     combined, status, reasoning = retry_evidence, retry_status, retry_reasoning
-                    links = links + gd_links
+                    links = links + wiki_links
 
         # Keep the articles the call was based on, so a status can be checked
         # rather than believed.
@@ -122,6 +128,37 @@ def _score_one(index: int, item: dict) -> dict:
         log.error("Scoring failed for %r: %s", item["prediction"][:60], e, exc_info=True)
         return {"result": UNKNOWN, "news_match": "",
                 "reasoning": f"Scoring failed ({type(e).__name__}): {e}", "articles": []}
+
+
+# Scores live in memory, so a restart emptied them and the page showed every
+# proposal as unscored until somebody noticed and pressed the button. A full pass
+# now takes minutes, so that gap is not small. The cache file covers restarts;
+# Railway's filesystem does not survive a redeploy, which is what the startup
+# refresh below is for.
+_CACHE = Path(__file__).resolve().parent.parent.parent / "data" / "scores.json"
+
+
+def _save_scores() -> None:
+    try:
+        _CACHE.parent.mkdir(parents=True, exist_ok=True)
+        _CACHE.write_text(json.dumps({"scored_at": _scored_at,
+                                      "scores": {str(k): v for k, v in _scores.items()}}))
+    except Exception as e:
+        log.warning("Could not cache scores: %s", e)
+
+
+def _load_scores() -> None:
+    """Restore cached scores at startup. Absence is normal, not an error."""
+    global _scores, _scored_at
+    try:
+        if not _CACHE.exists():
+            return
+        data = json.loads(_CACHE.read_text())
+        _scores = {int(k): v for k, v in (data.get("scores") or {}).items()}
+        _scored_at = float(data.get("scored_at") or 0)
+        log.info("Restored %d cached scores", len(_scores))
+    except Exception as e:
+        log.warning("Could not restore cached scores: %s", e)
 
 
 def refresh_scores() -> int:
@@ -139,6 +176,7 @@ def refresh_scores() -> int:
         results[i] = _score_one(i, item)
         _scores = dict(results)
         _scored_at = time.time()
+        _save_scores()
     log.info("Scored %d predictions", len(results))
     return len(results)
 

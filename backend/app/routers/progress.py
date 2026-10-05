@@ -19,7 +19,7 @@ from app.models.schemas import ProgressList, ProgressItem, AlertStatus, ArticleL
 from app.services.federal_register_service import search_with_links as fr_search
 from app.services.news_service import clear_last_error, last_error, search_news_with_links
 from app.services.ai_service import analyze_category_with_reasoning, AGENDA_CATEGORIES
-from app.services.gdelt_service import search_with_links as gdelt_search
+from app.services.wikipedia_service import search_with_links as wiki_search
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -89,10 +89,10 @@ def refresh_progress() -> int:
             # Same rule as the proposals: reach for the deep archive only when
             # the Federal Register and recent news left the category thin.
             if len(parts) < 2:
-                gd_text, gd_links = gdelt_search(category)
-                if gd_text:
-                    parts.append(gd_text)
-                    news_links = news_links + gd_links
+                wiki_text, wiki_links = wiki_search(category)
+                if wiki_text:
+                    parts.append(wiki_text)
+                    news_links = news_links + wiki_links
 
             combined = "\n\n".join(parts)
 
