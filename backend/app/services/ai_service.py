@@ -58,6 +58,33 @@ def get_openai_client() -> Optional[OpenAI]:
     return OpenAI(api_key=settings.openai_api_key, max_retries=3)
 
 
+# The evidence budget, and why it is not a plain slice.
+#
+# This was `news_summary[:6000]`. Evidence for the Department of Education ran to
+# 10,470 characters — three Federal Register documents at 2,500 each — and the
+# Wikipedia section is appended last, so the slice cut it off whole. The model
+# was never shown the March 20, 2025 executive order closing the department, and
+# correctly reported that the excerpts did not say it had been acted on. Every
+# row that retrieved encyclopedia text and still scored Unknown failed here, not
+# in retrieval and not in judgement.
+#
+# Dropping the tail is the worst available choice, because the tail is where the
+# second source goes, and the second source is consulted precisely when the first
+# one did not settle the question. The head keeps the official record and the tail
+# is reserved for whatever follows it.
+_EVIDENCE_BUDGET = 12000
+_TAIL_RESERVE = 3500
+
+
+def _fit_evidence(evidence: str, budget: int = _EVIDENCE_BUDGET) -> str:
+    """Trim `evidence` to `budget`, keeping the end as well as the beginning."""
+    if len(evidence) <= budget:
+        return evidence
+    tail = min(_TAIL_RESERVE, budget // 2)
+    head = budget - tail
+    return evidence[:head] + "\n\n[... middle of the evidence omitted for length ...]\n\n" + evidence[-tail:]
+
+
 def score_prediction_with_reasoning(prediction_text: str, news_summary: str) -> Tuple[str, str]:
     """Return (status, one-line reasoning).
 
@@ -76,7 +103,7 @@ using only the news excerpts provided.
 PROPOSAL: "{prediction_text}"
 
 EVIDENCE:
-{news_summary[:6000]}
+{_fit_evidence(news_summary)}
 
 The evidence may contain two kinds of source, and they do not carry equal weight:
 - FEDERAL REGISTER DOCUMENTS are the official record of government action. A
@@ -214,7 +241,7 @@ CATEGORY: {category}
 DEFINITION: {description}
 
 NEWS EXCERPTS:
-{news_summary[:6000]}
+{_fit_evidence(news_summary)}
 
 Scale:
    0  = no evidence of this in the excerpts
