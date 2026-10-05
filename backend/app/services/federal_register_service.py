@@ -14,8 +14,10 @@ Query syntax matters: a bare term is full-text and far too loose ("Schedule Poli
 Career" returns 2,843 documents including Medicare rules), while the quoted phrase
 returns 9, led by the executive order itself.
 """
+import html
 import json
 import logging
+import re
 import urllib.parse
 import urllib.request
 from typing import Dict, List, Tuple
@@ -53,7 +55,8 @@ def search_documents(query: str, per_page: int = 5,
     }
     url = (BASE + "?" + urllib.parse.urlencode(params)
            + "&fields[]=title&fields[]=publication_date&fields[]=type"
-             "&fields[]=html_url&fields[]=abstract&fields[]=agencies")
+             "&fields[]=html_url&fields[]=abstract&fields[]=agencies"
+             "&fields[]=raw_text_url")
     try:
         with urllib.request.urlopen(urllib.request.Request(url, headers=_UA), timeout=30) as r:
             data = json.load(r)
@@ -69,20 +72,70 @@ def search_documents(query: str, per_page: int = 5,
             "type": doc.get("type", ""),
             "url": doc.get("html_url", ""),
             "abstract": (doc.get("abstract") or "")[:400],
+            "raw_text_url": doc.get("raw_text_url") or "",
         })
     return out
 
 
-def summarise_for_scoring(docs: List[Dict]) -> str:
-    """Render documents as evidence text for the scoring model."""
+# Presidential Documents — executive orders, the strongest evidence this tracker
+# can have — carry no abstract at all. The scoring model was therefore handed a
+# bare title and nothing else, and answered, correctly, that it could not tell.
+# Executive Order 14251 reached it as the single line "Exclusions From Federal
+# Labor-Management Relations Programs", which is not enough to connect to a
+# proposal about curtailing collective bargaining.
+_TEXT_CHARS = 2500
+
+
+def fetch_document_text(raw_text_url: str, limit: int = _TEXT_CHARS) -> str:
+    """First `limit` characters of a document's actual text, or "" on failure.
+
+    The endpoint serves the text wrapped in HTML, so tags and entities come out
+    before the model sees it. Truncated because the opening of a Federal Register
+    document carries the title, the authority cited and the operative language,
+    which is what decides whether it is on point.
+    """
+    if not raw_text_url:
+        return ""
+    try:
+        req = urllib.request.Request(raw_text_url, headers=_UA)
+        with urllib.request.urlopen(req, timeout=20) as r:
+            raw = r.read().decode("utf-8", "replace")
+    except Exception as e:
+        log.warning("Full text fetch failed for %s: %s", raw_text_url, e)
+        return ""
+    body = re.sub(r"<[^>]+>", " ", raw)
+    body = html.unescape(body)
+    body = re.sub(r"\s+", " ", body).strip()
+    # Everything before the page marker is Federal Register masthead boilerplate
+    # repeated on every document, and spending the budget on it crowds out the
+    # operative text.
+    marker = re.search(r"\[\[Page \d+\]\]", body)
+    if marker:
+        body = body[marker.end():].strip()
+    return body[:limit]
+
+
+def summarise_for_scoring(docs: List[Dict], with_text: int = 3) -> str:
+    """Render documents as evidence text for the scoring model.
+
+    The top `with_text` documents are sent with their actual text rather than an
+    abstract. Relevance ordering means those are the ones most likely to decide
+    the answer, and fetching every hit in full would spend the token budget on
+    documents that only share a word with the proposal.
+    """
     if not docs:
         return ""
     lines = ["FEDERAL REGISTER DOCUMENTS (official record of government action):"]
-    for d in docs:
+    for i, d in enumerate(docs):
         weight = ACTION_WEIGHT.get(d["type"], "")
         marker = f" [{d['type']}" + (f" — {weight}]" if weight else "]")
         lines.append(f"- {d['date']}{marker} {d['title']}")
-        if d.get("abstract"):
+        body = ""
+        if i < with_text:
+            body = fetch_document_text(d.get("raw_text_url", ""))
+        if body:
+            lines.append(f"    TEXT: {body}")
+        elif d.get("abstract"):
             lines.append(f"    {d['abstract'][:220]}")
     return "\n".join(lines)
 

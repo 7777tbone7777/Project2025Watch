@@ -25,6 +25,7 @@ from fastapi import APIRouter
 from app.data.predictions_data import PREDICTIONS
 from app.models.schemas import ArticleLink, Prediction, PredictionList, ScoreResponse
 from app.services.ai_service import UNKNOWN, score_prediction_with_reasoning
+from app.services.gdelt_service import search_with_links as gdelt_search
 from app.services.federal_register_service import search_with_links as fr_search
 from app.services.news_service import search_news_with_links
 
@@ -79,8 +80,23 @@ def _score_one(index: int, item: dict) -> dict:
         news_text = "\n".join(summaries) if summaries else ""
 
         parts = [p for p in (fr_text, ("RECENT NEWS COVERAGE:\n" + news_text) if news_text else "") if p]
-        combined = "\n\n".join(parts)
         links = fr_links + news_links
+
+        # GDELT only when the better sources came up short. It reaches back years,
+        # which is the whole point — the Department of Education teardown runs
+        # through interagency agreements that never became a Federal Register rule,
+        # and NewsAPI's free tier cannot see 2025. But it allows one request every
+        # five seconds, so asking for all 21 proposals would add two minutes to a
+        # blocking re-score. Asking only when the evidence is thin keeps the common
+        # case fast and still covers the cases that need it.
+        if len(parts) < 2 or len(fr_text) < 400:
+            gd_query = item.get("gdelt_query") or item.get("keywords") or item["prediction"]
+            gd_text, gd_links = gdelt_search(gd_query)
+            if gd_text:
+                parts.append(gd_text)
+                links = links + gd_links
+
+        combined = "\n\n".join(parts)
         status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
         # Keep the articles the call was based on, so a status can be checked
         # rather than believed.
