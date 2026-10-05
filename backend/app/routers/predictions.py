@@ -110,12 +110,14 @@ def _score_one(index: int, item: dict) -> dict:
                 retry_evidence = "\n\n".join(parts + [wiki_text])
                 retry_status, retry_reasoning = score_prediction_with_reasoning(
                     item["prediction"], retry_evidence)
-                # Keep the second pass only if it actually decided something. A
-                # second Unknown is not an improvement worth overwriting the first
-                # reasoning for.
-                if retry_status not in (UNKNOWN, "Not Started"):
-                    combined, status, reasoning = retry_evidence, retry_status, retry_reasoning
-                    links = links + wiki_links
+                # Always take the second pass. It saw strictly more evidence, so
+                # its answer is the better-informed one even when it is still
+                # Unknown — and keeping the first pass instead hid whether the
+                # extra source had been consulted at all, which made this
+                # impossible to debug from the page: every row read "wiki: no"
+                # whether the lookup had run or not.
+                combined, status, reasoning = retry_evidence, retry_status, retry_reasoning
+                links = links + wiki_links
 
         # Keep the articles the call was based on, so a status can be checked
         # rather than believed.
