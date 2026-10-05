@@ -24,8 +24,14 @@ async def lifespan(_app: FastAPI):
     request to be served.
     """
     predictions._load_scores()
-    if not predictions._scores:
-        log.info("No cached scores after startup — scoring in the background")
+    # Incomplete counts as missing. A deploy mid-run kills the background task and
+    # leaves a partial cache behind; testing only for emptiness meant the next
+    # startup saw "some scores" and never finished the job, so the proposals that
+    # had not been reached stayed blank indefinitely.
+    expected = len(predictions.PREDICTIONS)
+    if len(predictions._scores) < expected:
+        log.info("Cached scores incomplete (%d of %d) — scoring in the background",
+                 len(predictions._scores), expected)
         asyncio.create_task(predictions._refresh_in_background())
     yield
 
