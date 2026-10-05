@@ -94,11 +94,15 @@ Choose exactly one status:
 
 Rules:
 - Judge ONLY from the excerpts.
-- "Not Started" and "Unknown" are different answers and the difference matters.
-  Use "Not Started" only when the evidence positively indicates nothing has
-  happened. When the excerpts simply do not cover this proposal, answer
-  "Unknown". Silence is not a finding, and reporting it as "Not Started" tells
-  the reader something false about the world.
+- "Unknown" is the DEFAULT. Start there and move off it only when the excerpts
+  give you a reason to.
+- "Not Started" is a positive claim that this proposal has NOT been acted on, and
+  it needs evidence saying so — reporting that it stalled, was abandoned, was
+  never introduced. If your reasoning would be "the excerpts do not provide
+  evidence", "the excerpts do not address this", or "there is no mention of
+  this", the answer is "Unknown", NOT "Not Started". Those sentences describe the
+  excerpts, not the world, and publishing them as "Not Started" tells the reader
+  something false.
 - Absence of evidence is not evidence of obstruction either.
 - "Obstructed" requires evidence something actually blocked it, not merely that
   the excerpts mention opposition or criticism.

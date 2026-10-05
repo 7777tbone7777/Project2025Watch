@@ -82,22 +82,35 @@ def _score_one(index: int, item: dict) -> dict:
         parts = [p for p in (fr_text, ("RECENT NEWS COVERAGE:\n" + news_text) if news_text else "") if p]
         links = fr_links + news_links
 
-        # GDELT only when the better sources came up short. It reaches back years,
-        # which is the whole point — the Department of Education teardown runs
-        # through interagency agreements that never became a Federal Register rule,
-        # and NewsAPI's free tier cannot see 2025. But it allows one request every
-        # five seconds, so asking for all 21 proposals would add two minutes to a
-        # blocking re-score. Asking only when the evidence is thin keeps the common
-        # case fast and still covers the cases that need it.
-        if len(parts) < 2 or len(fr_text) < 400:
+        combined = "\n\n".join(parts)
+        status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
+
+        # Reach for the deep archive only when the first pass could not settle it.
+        #
+        # The previous gate tested whether the evidence was SHORT, which stopped
+        # working the moment full Federal Register text made it long. Length was
+        # never the point: 3,000 characters about Reduction in Force is long and
+        # still says nothing about eliminating the Department of Education.
+        #
+        # What matters is whether the evidence answered the question, and the
+        # scorer already reports that. Re-running only the undecided proposals
+        # keeps GDELT's one-request-per-five-seconds inside a blocking re-score,
+        # and those are exactly the proposals whose evidence predates what the
+        # Register and a month of news can reach.
+        if status in (UNKNOWN, "Not Started"):
             gd_query = item.get("gdelt_query") or item.get("keywords") or item["prediction"]
             gd_text, gd_links = gdelt_search(gd_query)
             if gd_text:
-                parts.append(gd_text)
-                links = links + gd_links
+                retry_evidence = "\n\n".join(parts + [gd_text])
+                retry_status, retry_reasoning = score_prediction_with_reasoning(
+                    item["prediction"], retry_evidence)
+                # Keep the second pass only if it actually decided something. A
+                # second Unknown is not an improvement worth overwriting the first
+                # reasoning for.
+                if retry_status not in (UNKNOWN, "Not Started"):
+                    combined, status, reasoning = retry_evidence, retry_status, retry_reasoning
+                    links = links + gd_links
 
-        combined = "\n\n".join(parts)
-        status, reasoning = score_prediction_with_reasoning(item["prediction"], combined)
         # Keep the articles the call was based on, so a status can be checked
         # rather than believed.
         return {"result": status, "news_match": combined,
