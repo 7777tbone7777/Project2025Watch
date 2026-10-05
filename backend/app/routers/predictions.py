@@ -24,7 +24,7 @@ from fastapi import APIRouter
 
 from app.data.predictions_data import PREDICTIONS
 from app.models.schemas import ArticleLink, Prediction, PredictionList, ScoreResponse
-from app.services.ai_service import score_prediction_with_reasoning
+from app.services.ai_service import UNKNOWN, score_prediction_with_reasoning
 from app.services.federal_register_service import search_with_links as fr_search
 from app.services.news_service import search_news_with_links
 
@@ -87,9 +87,12 @@ def _score_one(index: int, item: dict) -> dict:
         return {"result": status, "news_match": combined,
                 "reasoning": reasoning, "articles": links}
     except Exception as e:
-        log.error("Scoring failed for %r: %s", item["prediction"][:60], e)
-        return {"result": "Not Started", "news_match": "",
-                "reasoning": f"Scoring error: {type(e).__name__}", "articles": []}
+        # Second copy of the same mistake: a failed search or scoring call used to
+        # be published as "Not Started", which is a claim about the world rather
+        # than about us. UNKNOWN keeps them apart, and the message says what broke.
+        log.error("Scoring failed for %r: %s", item["prediction"][:60], e, exc_info=True)
+        return {"result": UNKNOWN, "news_match": "",
+                "reasoning": f"Scoring failed ({type(e).__name__}): {e}", "articles": []}
 
 
 def refresh_scores() -> int:

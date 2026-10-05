@@ -36,7 +36,10 @@ AGENDA_CATEGORIES = [
     "Media Subversion",
 ]
 
-VALID_STATUSES = ["Achieved", "InProgress", "Obstructed", "Not Started"]
+# "Unknown" belongs here as well as in the prompt. Without it the model's own
+# "Unknown" is rejected as unrecognised and its reasoning thrown away, replacing
+# a considered "the excerpts do not cover this" with a parser complaint.
+VALID_STATUSES = ["Achieved", "InProgress", "Obstructed", "Not Started", "Unknown"]
 
 # "Not Started" is a claim about the world: nothing has happened yet. A failed API
 # call, a missing key, or no coverage are claims about us, and rendering them as
@@ -86,11 +89,17 @@ Choose exactly one status:
 - "Achieved"    - the proposal has been substantially carried out
 - "InProgress"  - concrete steps taken, not complete
 - "Obstructed"  - attempted but blocked by courts, Congress, or reversal
-- "Not Started" - no evidence in these excerpts that it has been acted on
+- "Not Started" - the excerpts show this proposal has NOT been acted on
+- "Unknown"     - the excerpts do not address this proposal either way
 
 Rules:
-- Judge ONLY from the excerpts. If they do not address this proposal, answer
-  "Not Started" — absence of evidence is not evidence of obstruction.
+- Judge ONLY from the excerpts.
+- "Not Started" and "Unknown" are different answers and the difference matters.
+  Use "Not Started" only when the evidence positively indicates nothing has
+  happened. When the excerpts simply do not cover this proposal, answer
+  "Unknown". Silence is not a finding, and reporting it as "Not Started" tells
+  the reader something false about the world.
+- Absence of evidence is not evidence of obstruction either.
 - "Obstructed" requires evidence something actually blocked it, not merely that
   the excerpts mention opposition or criticism.
 - Headlines about a related topic are not evidence about THIS proposal.
